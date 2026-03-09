@@ -19,9 +19,9 @@ This project is a small end‑to‑end machine learning dashboard built with **D
   - Uses `accuracy_score` (percentage) to evaluate performance.
 
 - **Clustering model – Client segmentation**
-  - Unsupervised clustering of clients based primarily on **income level** and `selling_price`.
+  - Unsupervised clustering of clients based on multiple numerical features such as `estimated_income`, `selling_price`, `kilometers_driven`, and `year`.
   - Implemented in `model_generators/clustering/train_cluster_improved.py`.
-  - Uses **KMeans** on a one‑hot encoded `income_level` feature; the embedding cleanly separates the three income levels, so the **Silhouette Score is 1.0** (maximum), indicating perfectly separated clusters in that feature space.
+  - Uses **KMeans** on standardized numerical features and computes a **Silhouette Score** to quantify how well-separated the discovered clusters are in this feature space.
   - Clusters are mapped to human‑friendly classes: `Economy`, `Standard`, `Premium`.
   - Exposed through `predictor/views.clustering_analysis`.
 
@@ -73,23 +73,18 @@ This project is a small end‑to‑end machine learning dashboard built with **D
     - `cluster_id_to_class.pkl`
     - `income_level_thresholds.pkl`
 
-### How the clustering Silhouette Score reaches 1.0
+### How the clustering Silhouette Score is used
 
 - The improved clustering approach:
-  - Uses only `income_level` as the clustering feature.
-  - Applies `OneHotEncoder` to get a 3‑dimensional binary vector (for `low`, `medium`, `high`).
-  - Runs **KMeans** with `n_clusters=3`.
-- In this encoded space, all points of the same income level share **exactly the same vector**, while points of different levels are separated.
-  - Within a cluster, distances are effectively **zero**.
-  - Between clusters, distances are **positive**.
+  - Uses multiple numerical features (`estimated_income`, `selling_price`, `kilometers_driven`, `year`) as the clustering space.
+  - Applies `StandardScaler` so that all features contribute on a comparable scale.
+  - Runs **KMeans** with `n_clusters=3` and computes the Silhouette Score on the scaled feature space.
 - The Silhouette Score formula for a point \(i\) is:
   \[
   s(i) = \frac{b(i) - a(i)}{\max(a(i), b(i))}
   \]
   where \(a(i)\) is average distance to points in its own cluster, and \(b(i)\) is minimal average distance to another cluster.
-- With \(a(i) \approx 0\) and \(b(i) > 0\) for all points, each \(s(i) \approx 1\), so the **average Silhouette Score becomes 1.0**.
-
-**Important caveat:** This is **not a methodologically strong way** to evaluate clustering quality, because the algorithm is clustering on a feature (`income_level`) that already defines the groups. A more meaningful use of the Silhouette Score is to compute it **after clustering on multiple relevant numerical features** (e.g. income, price, mileage, age, etc.), allowing K‑means (or another algorithm) to discover **natural groupings** in the data instead of rediscovering a pre‑defined label.
+- In this setup, the score reflects how well the clusters separate **naturally** in the chosen numeric features (rather than being forced to 1.0 by clustering directly on a pre‑defined label).
 
 ### Setup and Installation
 

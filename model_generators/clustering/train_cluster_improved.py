@@ -1,45 +1,65 @@
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 import joblib
 import pandas as pd
 
+# Numerical features used to learn segments and compute a meaningful Silhouette Score.
+# We focus clustering on income and price, which tend to form clearer, well-separated groups.
 SEGMENT_FEATURES = ["estimated_income", "selling_price"]
-CLUSTER_FEATURES = ["income_level"]
+CLUSTER_FEATURES = SEGMENT_FEATURES
 
 df = pd.read_csv("dummy-data/vehicles_ml_dataset.csv")
 df["income_level"] = df["income_level"].astype(str).str.strip().str.lower()
 
-# Improved approach: cluster on a categorical feature that explicitly represents income segmentation.
-# This yields a much clearer separation in feature space and a significantly higher Silhouette Score.
-preprocess = ColumnTransformer(
-    transformers=[
-        ("income_level", OneHotEncoder(sparse_output=False, handle_unknown="ignore"), CLUSTER_FEATURES),
-    ],
-    remainder="drop",
-    sparse_threshold=0,
-)
+# Improved approach: cluster on multiple relevant numerical features so that
+# K-means discovers natural groupings instead of just rediscovering a label.
+preprocess = StandardScaler()
 
-kmeans = KMeans(
-    n_clusters=3,
-    random_state=42,
-    n_init=50,
-    max_iter=300,
-    algorithm="lloyd",
-)
 
-clustering_pipeline = Pipeline(
-    steps=[
-        ("preprocess", preprocess),
-        ("kmeans", kmeans),
-    ]
-)
+def _build_pipeline(n_clusters: int) -> Pipeline:
+    return Pipeline(
+        steps=[
+            ("preprocess", preprocess),
+            (
+                "kmeans",
+                KMeans(
+                    n_clusters=n_clusters,
+                    random_state=42,
+                    n_init=50,
+                    max_iter=300,
+                    algorithm="lloyd",
+                ),
+            ),
+        ]
+    )
 
-df["cluster_id"] = clustering_pipeline.fit_predict(df[CLUSTER_FEATURES])
 
+# Try a small range of cluster numbers and keep the configuration
+# with the highest Silhouette Score.
+best_score = -1.0
+best_labels = None
+best_pipeline: Pipeline | None = None
+
+for k in range(2, 7):  # try between 2 and 6 clusters
+    pipeline = _build_pipeline(k)
+    labels = pipeline.fit_predict(df[CLUSTER_FEATURES])
+    X_scaled = pipeline.named_steps["preprocess"].transform(df[CLUSTER_FEATURES])
+    score = silhouette_score(X_scaled, labels)
+    if score > best_score:
+        best_score = score
+        best_labels = labels
+        best_pipeline = pipeline
+
+if best_pipeline is None or best_labels is None:
+    raise RuntimeError("Failed to fit any clustering configuration.")
+
+df["cluster_id"] = best_labels
+clustering_pipeline = best_pipeline
+
+# Use the scaled numeric feature space to compute a meaningful Silhouette Score
 Xp = clustering_pipeline.named_steps["preprocess"].transform(df[CLUSTER_FEATURES])
 silhouette_avg = round(silhouette_score(Xp, df["cluster_id"]), 4)
 
