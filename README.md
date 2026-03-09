@@ -89,6 +89,8 @@ This project is a small end‑to‑end machine learning dashboard built with **D
   where \(a(i)\) is average distance to points in its own cluster, and \(b(i)\) is minimal average distance to another cluster.
 - With \(a(i) \approx 0\) and \(b(i) > 0\) for all points, each \(s(i) \approx 1\), so the **average Silhouette Score becomes 1.0**.
 
+**Important caveat:** This is **not a methodologically strong way** to evaluate clustering quality, because the algorithm is clustering on a feature (`income_level`) that already defines the groups. A more meaningful use of the Silhouette Score is to compute it **after clustering on multiple relevant numerical features** (e.g. income, price, mileage, age, etc.), allowing K‑means (or another algorithm) to discover **natural groupings** in the data instead of rediscovering a pre‑defined label.
+
 ### Setup and Installation
 
 1. **Create and activate a virtual environment** (recommended).
